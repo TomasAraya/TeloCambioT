@@ -552,7 +552,12 @@ const styles = StyleSheet.create({
 
     fontWeight: "900",
     textAlign: "center",
+<<<<<<< HEAD
     marginVertical: 20,
+=======
+    margin: 15,
+
+>>>>>>> f26fe213e43324e03298aec344f868e3539e7f29
   },
   containerText:{
     width: "45%",

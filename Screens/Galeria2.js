@@ -114,7 +114,11 @@ export default function Galeria2() {
   };
 
   const goMiPerfil = () => {
+<<<<<<< HEAD
     navigation.navigate("MiPerfil");
+=======
+    navigation.navigate("Mi Perfil");
+>>>>>>> f26fe213e43324e03298aec344f868e3539e7f29
 
   };
   const MisIntercambios = () => {
@@ -179,6 +183,10 @@ export default function Galeria2() {
 
         <TouchableOpacity style={styles.drawerItem} onPress={goMiPerfil}>
           <Text style={styles.drawerText}>Mi Perfil</Text>
+<<<<<<< HEAD
+=======
+
+>>>>>>> f26fe213e43324e03298aec344f868e3539e7f29
         </TouchableOpacity>
         <TouchableOpacity style={styles.drawerItem} onPress={goGaleria2}>
           <Text style={styles.drawerText}>Galería de Artículos</Text>
