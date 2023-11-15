@@ -33,10 +33,28 @@ export default function MisPublicados() {
 
   const handleDeleteItem = async (itemId) => {
     try {
-      await deleteDoc(doc(db, "Publicaciones", itemId));
+      await Promise.all([eliminarOfertasAsociadas(itemId), deleteDoc(doc(db, "Publicaciones", itemId))]);
       setDataSource((prevData) => prevData.filter(item => item.uid !== itemId));
     } catch (error) {
       console.error("Error al eliminar el artículo:", error);
+    }
+  };
+
+  const eliminarOfertasAsociadas = async (itemId) => {
+    try {
+      const ofertasRef = query(collection(db, "Ofertas"), where("ArticuloGaleria", "==", itemId));
+      const ofertasSnap = await getDocs(ofertasRef);
+  
+      console.log("Ofertas a eliminar:", ofertasSnap.docs.map(doc => doc.id));
+  
+      for (const ofertaDoc of ofertasSnap.docs) {
+        const ofertaId = ofertaDoc.id;
+        console.log("Eliminando oferta:", ofertaId);
+        await deleteDoc(doc(db, "Ofertas", ofertaId));
+      }
+    } catch (error) {
+      console.error("Error al eliminar ofertas asociadas:", error);
+      throw error; // Propaga el error para que pueda ser capturado en la función que lo llama.
     }
   };
 
@@ -61,6 +79,10 @@ export default function MisPublicados() {
 
   const goMisOfertas = () => {
     navigation.navigate("MisOfertas");
+  };
+
+  const MisIntercambios = () => {
+    navigation.navigate("MisIntercambios");
   };
   
   const drawer = useRef(null);
@@ -107,6 +129,9 @@ export default function MisPublicados() {
         <TouchableOpacity style={styles.drawerItem} onPress={goMisOfertas}>
           <Text style={styles.drawerText}>Mis Ofertas</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.drawerItem} onPress={MisIntercambios}>
+          <Text style={styles.drawerText}>Mis Intercambios</Text>
+        </TouchableOpacity>
       </Drawer.Section>
 
       <TouchableOpacity style={styles.logoutButton} onPress={cerrarSesion}>
@@ -126,7 +151,11 @@ export default function MisPublicados() {
   const fetchPosts = async () => {
     setLoading(true);
     const allItemsArray = [];
-    const articulosPublicadosRef = await getDocs(query(collection(db, "Publicaciones"), where("uid", "==", userId)));
+    const articulosPublicadosRef = await getDocs(query(
+      collection(db, "Publicaciones"), 
+      where("uid", "==", userId),
+      where("estadoPublicacion", "==", "activa")
+    ));
     articulosPublicadosRef.forEach((postDoc) => {
       const postData = postDoc.data();
       allItemsArray.push({
@@ -178,7 +207,7 @@ export default function MisPublicados() {
   
   const renderItem = ({item}) => {
     return (
-      <Card style={styles.containerCard} onPress={goMiPerfil}> 
+      <Card style={styles.containerCard}> 
         <Card.Title
         style={styles.containerCardContent} 
         title={<Text style={styles.textCard} >{item.nombreArticulo}</Text>} 

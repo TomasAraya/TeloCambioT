@@ -35,9 +35,12 @@ export default function MisOfertas() {
     const fetchOfertas = async () => {
       try {
         // AQUI HACE QUE MUESTRE SOLO LAS OFERTAS DEL USUARIO QUE ESTA LOGEADO
-        const offersRef = query(collection(db, 'Ofertas'), where('UsuarioGaleria', '==', auth.currentUser.uid));
+        const offersRef = query(
+          collection(db, 'Ofertas'),
+          where('UsuarioGaleria', '==', auth.currentUser.uid),
+          where('Estado', '==', 'pendiente')  // AQUI ESTA LA FUNCION QUE TRAE SOLO LOS QUE ESTAN PENDIENTE
+        );
         const offersSnap = await getDocs(offersRef);
-        
         const fetchedOfertas = [];
         for (let offerDoc of offersSnap.docs) {
           const ofertaData = offerDoc.data();
@@ -50,28 +53,34 @@ export default function MisOfertas() {
           ]);
           // AQUI YA CON LOS UID OBTENIDOS DE Publicaciones LLAMA A LA DATA DE LA OFERTA
           // ESTOS SON LOS DATOS QUE VA A MOSTRAR EN EL FRONT, SE OBTUVIERON COMPARANDO LOS UID DE Ofertas Y Publicaciones
-          fetchedOfertas.push({
-            id: offerDoc.id,
-            fecha: ofertaData.fecha,
-            ArticuloGaleria: {
-              imagenURL: publicacionGaleriaSnap.data().imagenURL,
-              nombreArticulo: publicacionGaleriaSnap.data().nombreArticulo
-            },
-            ArticuloOferta: {
-              imagenURL: publicacionOfertaSnap.data().imagenURL,
-              nombreArticulo: publicacionOfertaSnap.data().nombreArticulo
-            }
-          });
-        }    
-        setOfertas(fetchedOfertas);
-        setIsLoading(false); 
-      } catch (error) {
-          console.error("Error al obtener ofertas:", error);
-          setIsLoading(false);
-      }
-    };
-    fetchOfertas();
-  }, []);
+          if (publicacionGaleriaSnap.exists() && publicacionOfertaSnap.exists()) {
+            const galeriaData = publicacionGaleriaSnap.data();
+            const ofertaData = publicacionOfertaSnap.data();
+            // AQUI VERIFICA EL ESTADO DE LAS PUBLICACIONES, SI ESTAN INACTIVAS NO SE MUESTRAN LAS OFERTAS
+            if (galeriaData.estadoPublicacion === 'activa' && ofertaData.estadoPublicacion === 'activa') {
+              fetchedOfertas.push({
+                id: offerDoc.id,
+                fecha: ofertaData.fecha,
+                ArticuloGaleria: {
+                  imagenURL: galeriaData.imagenURL,
+                  nombreArticulo: galeriaData.nombreArticulo
+                },
+                ArticuloOferta: {
+                  imagenURL: ofertaData.imagenURL,
+                  nombreArticulo: ofertaData.nombreArticulo
+                }
+            });
+          }
+        }
+      }    
+      setOfertas(fetchedOfertas);
+    } catch (error) {
+      console.error("Error al obtener ofertas:", error);
+    }
+    setIsLoading(false); 
+  };
+  fetchOfertas();
+  },[]);
 
 
   const EliminarOferta = async (oferta) => {
@@ -113,7 +122,7 @@ export default function MisOfertas() {
   );
 
   const formatDateFromDatabase = (timestamp) => {
-    if (!timestamp) return '';  // or return a default value or error message
+    if (!timestamp) return '';
     const date = timestamp.toDate();
     return getCurrentDateFormatted(date);
   } 
@@ -137,6 +146,10 @@ export default function MisOfertas() {
 
   const goMisOfertas = () => {
     navigation.navigate("MisOfertas");
+  };
+
+  const MisIntercambios = () => {
+    navigation.navigate("MisIntercambios");
   };
 
   const changeDrawerPosition = () => {
@@ -180,6 +193,9 @@ export default function MisOfertas() {
         <TouchableOpacity style={styles.drawerItem} onPress={goMisOfertas}>
           <Text style={styles.drawerText}>Mis Ofertas</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.drawerItem} onPress={MisIntercambios}>
+          <Text style={styles.drawerText}>Mis Intercambios</Text>
+        </TouchableOpacity>
       </Drawer.Section>
 
       <TouchableOpacity style={styles.logoutButton} onPress={cerrarSesion}>
@@ -190,10 +206,6 @@ export default function MisOfertas() {
       </TouchableOpacity>
     </View>
   );
-
-  const goConcretar = (oferta) => {
-    navigation.navigate('Concretar', { ofertaSeleccionada: oferta });
-  };
 
   const renderDrawerAndroid = () => (
     <DrawerLayout
@@ -214,7 +226,7 @@ export default function MisOfertas() {
               style={styles.containerFlatList}
               keyExtractor={item => item.id}
               renderItem={({ item, index }) => (
-                <Card style={styles.containerCard} onPress={goConcretar}>
+                <Card style={styles.containerCard} onPress={() => navigation.navigate('Concretar', { ofertaId: item.id })}>
                   <Text style={styles.textCardDate}>Oferta recibida el {formatDateFromDatabase(item.fecha)}</Text>
                   <Card.Title
                     style={styles.containerCardContent}
@@ -337,6 +349,7 @@ const styles = StyleSheet.create({
   },
   textCardLeft: {
     fontSize: 16,
+    width: 150,
     fontWeight: '500',
     textAlign: 'center',
     marginHorizontal: 3
@@ -390,5 +403,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: 'gray',
     alignItems: 'center'
+  },
+  textCardDate: {
+    fontSize: 17,
+    color: 'grey',
+    marginTop: 5,
+    marginHorizontal: 12,
+    alignSelf: "center"
   },
 });

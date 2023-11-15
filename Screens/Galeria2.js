@@ -35,7 +35,7 @@ export default function Galeria2() {
       const user = auth.currentUser;
       usersSnapshot.forEach((postDoc) => {
         const postData = postDoc.data();
-        if (user && postData.uid !== user.uid) {
+        if (postData.estadoPublicacion === 'activa' && postData.uid !== user.uid) {
           allItemsArray.push({
             id: postDoc.id,
             imagenURL: postData.imagenURL,
@@ -54,7 +54,7 @@ export default function Galeria2() {
     } finally {
       setLoading(false);
     }
-  };
+  };    
 
   useEffect(() => {
     //ESTE USEEFFECT HACE QUE LA GALERIA SE REFRESQUE PARA VER EL ARTICULO RECIEN SUBIDO
@@ -112,8 +112,10 @@ export default function Galeria2() {
   const goSubirArticulos = () => {
     navigation.navigate("SubirArticulos");
   };
+
   const goMiPerfil = () => {
-    navigation.navigate("Mi Perfil");
+    navigation.navigate("MiPerfil");
+
   };
   const MisIntercambios = () => {
     navigation.navigate("MisIntercambios");
@@ -174,6 +176,7 @@ export default function Galeria2() {
       <View style={styles.separatorLine} />
 
       <Drawer.Section>
+
         <TouchableOpacity style={styles.drawerItem} onPress={goMiPerfil}>
           <Text style={styles.drawerText}>Mi Perfil</Text>
         </TouchableOpacity>

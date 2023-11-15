@@ -19,9 +19,12 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
   addDoc,
   limit,
   serverTimestamp,
+  doc,
+  updateDoc
 } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -30,6 +33,7 @@ export default function DetalleArticulo() {
   const navigation = useNavigation();
   const route = useRoute();
   const item = route.params?.item;
+  const [modo, setModo] = useState('teloregalo');
   const [mostrarModal, setMostrarModal] = useState(false);
   const [articulos, setArticulos] = useState([]);
   const [articleId, setarticleId] = useState(null);
@@ -40,13 +44,14 @@ export default function DetalleArticulo() {
   const userId = item.id.match(/-(.*)/)[1];
   const images = [item.imagenURL, item.imagenURL2, item.imagenURL3];
   const [userRole, setUserRole] = useState(null);
+ 
 
   useEffect(() => {
     const fetchUserData = async () => {
-      console.log("Fetching user data for userId:", userId);
+      console.log("ID del usuario de la publicacion:", userId);
       if (!userId) return;
       try {
-        const usuariosCollection = collection(db, "Usuarios");
+        const usuariosCollection = collection(db, "Usuarios"); 
         const usuariosQuery = query(
           usuariosCollection,
           where("uid", "==", userId)
@@ -102,9 +107,72 @@ export default function DetalleArticulo() {
     }
   };
 
-  const navigateToDatosCambio = () => {
-    navigation.navigate("DatosCambio", { item });
+ //----------------------  AQUI ENVIA LOS DATOS A DATOSCAMBIO --------------------------
+  const manejarRegaloArticulo = async (articulo) => {
+    if (!articulo) {
+      console.error('Artículo no definido');
+      return;
+    }
+    // AQUI VERIFICA SI ESTA INACTIVO O ACTIVO SEGUN ALGUIEN LO ALLA RECLAMADO PRIMERO
+    try {
+      const publicacionRef = doc(db, 'Publicaciones', articulo.id);
+      const publicacionSnap = await getDoc(publicacionRef);
+      const publicacionData = publicacionSnap.data();
+      if (publicacionData && publicacionData.estadoPublicacion === 'inactiva') {
+        Alert.alert(
+          'Artículo No Disponible', 
+          'Lamentamos informarle que este artículo ya ha sido reclamado por otro usuario. Le invitamos a explorar otras opciones disponibles en nuestra plataforma.',
+          [
+            { 
+              text: 'OK', 
+              onPress: () => navigation.navigate('Galeria2') 
+            }
+          ]
+        );
+        return;
+      }
+    } catch (error) {
+      console.error("Error al verificar el estado de la publicación:", error);
+      return;
+    }  
+    if (modo === 'teloregalo' && articulo) {
+      const partesId = articulo.id.split('-');
+      const usuarioIdExtraido = partesId.length > 1 ? partesId[1] : null;
+      if (usuarioIdExtraido) {
+        goToDatosRegalo(articulo, usuarioIdExtraido, 'teloregalo');
+        // LOGICA PARA CAMBIAR A INACTIVA
+        try {
+          const publicacionRef = doc(db, 'Publicaciones', articulo.id);
+          await updateDoc(publicacionRef, {
+            estadoPublicacion: 'inactiva'
+          });
+          console.log("Estado de la publicación actualizado a 'inactiva'");
+        } catch (error) {
+          console.error("Error al actualizar el estado de la publicación:", error);
+        }
+      } else {
+        console.error('manejarRegaloArticulo - usuarioIdExtraido no definido o nulo:', usuarioIdExtraido);
+      }
+    } else {
+      console.error('Artículo no definido o modo no es teloregalo');
+    }
   };
+  
+  const goToDatosRegalo = (articulo, usuarioIdExtraido, modo) => {
+    if (usuarioIdExtraido && articulo) {
+      navigation.navigate('DatosCambio', {
+        item: {
+          id: usuarioIdExtraido,
+          articulo: articulo,
+          nombreArticulo: articulo.nombreArticulo,
+        },
+        modo: modo
+      });
+    } else {
+      console.error('ID del usuario o datos del artículo no disponibles', { usuarioIdExtraido, articulo });
+    }
+  };
+  // ------------------------------------------------------------------------------------
 
   const toggleModal = (index) => {
     setIndiceImagenAmpliada(index);
@@ -139,7 +207,12 @@ export default function DetalleArticulo() {
       imagenes: images,
       estadoArticulo: item.estadoArticulo,
       comuna: item.comuna,
+      id: item.id
     });
+  };
+
+  const MisIntercambios = () => {
+    navigation.navigate("MisIntercambios");
   };
 
   const drawer = useRef(null);
@@ -186,6 +259,9 @@ export default function DetalleArticulo() {
         <TouchableOpacity style={styles.drawerItem} onPress={goMisOfertas}>
           <Text style={styles.drawerText}>Mis Ofertas</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.drawerItem} onPress={MisIntercambios}>
+          <Text style={styles.drawerText}>Mis Intercambios</Text>
+        </TouchableOpacity>
       </Drawer.Section>
 
       <TouchableOpacity style={styles.logoutButton} onPress={cerrarSesion}>
@@ -197,7 +273,7 @@ export default function DetalleArticulo() {
     </View>
   );
 
-  const confirmarReclamo = () => {
+  const confirmarReclamo = (articulo) => {
     Alert.alert(
       "Confirmación",
       "¿Estás seguro de que deseas reclamar este artículo?",
@@ -206,11 +282,11 @@ export default function DetalleArticulo() {
           text: "No",
           style: "cancel",
         },
-        { text: "Sí", onPress: navigateToDatosCambio },
+        { text: "Sí", onPress: () => manejarRegaloArticulo(articulo) },
       ],
       { cancelable: false }
     );
-  };
+  };  
 
   useEffect(() => {
     const fetchPublicaciones = async () => {
@@ -221,18 +297,21 @@ export default function DetalleArticulo() {
           where("uid", "==", userID)
         );
         const publicacionesSnapshot = await getDocs(publicacionesQuery);
-        const publicacionesData = publicacionesSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        console.log("Publicaciones:", publicacionesData);
+        const publicacionesData = publicacionesSnapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+          .filter((publicacion) => publicacion.estadoPublicacion !== "inactiva");
+        console.log("Publicaciones para intercambiar:", publicacionesData);
         setArticulos(publicacionesData);
       } catch (error) {
         console.error("Error al obtener las publicaciones:", error);
       }
     };
-    fetchPublicaciones();
+    fetchPublicaciones(); 
   }, [userID]);
+  
 
   const [modalArticulo, setModalArticulo] = useState(false);
 
@@ -271,24 +350,13 @@ export default function DetalleArticulo() {
                   onPress: () => navigation.navigate("Galeria2"),
                 },
               ]
-            );
+            ); 
           },
         },
       ],
       { cancelable: true }
     );
   };
-
-  useEffect(() => {
-    console.log(
-      "Después de establecer el estado - ID seleccionado:",
-      selectedCard
-    );
-    console.log(
-      "Después de establecer el estado - ID de artículo ofrecido:",
-      articleId
-    );
-  }, [selectedCard, articleId]);
 
   const [columns, setColumns] = useState(1);
 
@@ -346,7 +414,7 @@ export default function DetalleArticulo() {
               {item.tipo === "Regalar artículo" && (
                 <TouchableOpacity
                   style={[styles.teLoRegaloButton]}
-                  onPress={confirmarReclamo}
+                  onPress={() => confirmarReclamo(item)}
                 >
                   <Text style={styles.teLoRegaloButtonText}>TELOREGALO</Text>
                 </TouchableOpacity>
@@ -481,9 +549,10 @@ const styles = StyleSheet.create({
   },
   tittle: {
     fontSize: 20,
+
     fontWeight: "900",
     textAlign: "center",
-    margin: 15,
+    marginVertical: 20,
   },
   containerText:{
     width: "45%",
